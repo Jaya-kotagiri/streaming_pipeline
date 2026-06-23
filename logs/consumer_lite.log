@@ -1,0 +1,12 @@
+2026-06-19 15:57:12 | INFO     | consumer_lite | Listening on topic 'file-change-events'...
+2026-06-19 15:58:02 | INFO     | consumer_lite | Wrote 1 event(s) to SQLite sink.
+2026-06-19 15:58:02 | INFO     | consumer_lite | Persisted UPDATE event 9f4c191d-d893-4bbe-829a-1447c7e3db24
+2026-06-19 15:58:02 | INFO     | consumer_lite | Wrote 1 event(s) to SQLite sink.
+2026-06-19 15:58:02 | INFO     | consumer_lite | Persisted INSERT event 97d479a5-cd85-443f-a02b-cefa03c11075
+2026-06-19 15:59:39 | INFO     | consumer_lite | Wrote 1 event(s) to SQLite sink.
+2026-06-19 15:59:39 | INFO     | consumer_lite | Persisted UPDATE event 83307098-1d88-419e-ab76-2ea27a3b4225
+2026-06-19 16:00:43 | INFO     | consumer_lite | Wrote 1 event(s) to SQLite sink.
+2026-06-19 16:00:43 | INFO     | consumer_lite | Persisted INSERT event f9c21bc0-f2f9-4346-a568-60d91e737015
+2026-06-19 16:01:21 | INFO     | consumer_lite | Listening on topic 'file-change-events'...
+2026-06-19 16:02:09 | INFO     | consumer_lite | Wrote 1 event(s) to SQLite sink.
+2026-06-19 16:02:09 | INFO     | consumer_lite | Persisted INSERT event f6b87a0b-81fc-48c6-a1b3-51f96f5d8807

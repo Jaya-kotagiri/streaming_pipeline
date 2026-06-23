@@ -1,0 +1,6 @@
+order_id=1001,status=SHIPPED,amount=49.99
+order_id=1002,status=SHIPPED,amount=129.50
+order_id=1003,status=CANCELLED,amount=15.00
+order_id=1004,status=PENDING,amount=30.00
+order_id=1005,status=SHIPPED,amount=90.00
+order_id=1006,status=PENDING,amount=40.00

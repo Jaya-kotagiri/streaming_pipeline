@@ -1,0 +1,50 @@
+# Real-Time File Change Streaming Pipeline - Configuration
+# Any value below can be overridden with an environment variable named
+# FCSTREAM_<SECTION>_<KEY> (uppercase, underscores), e.g. FCSTREAM_KAFKA_BOOTSTRAP_SERVERS
+
+watcher:
+  watch_path: "./sample_data/sample.txt"   # file to monitor
+  snapshot_dir: "./snapshots"               # stores last-known-good content for diffing
+  poll_interval_seconds: 0.5                # debounce window after a filesystem event
+  encoding: "utf-8"
+
+kafka:
+  bootstrap_servers: "localhost:9092"
+  topic: "file-change-events"
+  client_id: "fc-stream-producer"
+  acks: "all"
+  retries: 5
+  linger_ms: 10
+  group_id: "fc-stream-consumer-group"
+  auto_offset_reset: "earliest"
+
+spark:
+  app_name: "FCStreamProcessor"
+  checkpoint_location: "./checkpoints/file_change_stream"
+  trigger_interval: "5 seconds"
+  max_offsets_per_trigger: 1000
+
+database:
+  # dev target (no external dependencies, used by default)
+  dev:
+    dialect: "sqlite"
+    path: "./db/file_change_events.db"
+  # production target
+  prod:
+    dialect: "snowflake"
+    account: "your_account.snowflakecomputing.com"
+    user: "your_user"
+    password: "set_via_env:FCSTREAM_DATABASE_PROD_PASSWORD"
+    warehouse: "COMPUTE_WH"
+    database: "STREAMING_DB"
+    schema: "PUBLIC"
+    table: "file_change_events"
+    # JDBC fallback (e.g. Postgres) - used if dialect == "jdbc"
+    jdbc_url: "jdbc:postgresql://localhost:5432/streaming_db"
+    jdbc_driver: "org.postgresql.Driver"
+
+logging:
+  level: "INFO"
+  log_dir: "./logs"
+  max_bytes: 5242880   # 5 MB
+  backup_count: 5

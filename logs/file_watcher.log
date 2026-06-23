@@ -1,0 +1,11 @@
+2026-06-19 15:55:52 | INFO     | file_watcher | Watching sample_data\sample.txt for changes...
+2026-06-19 15:58:02 | INFO     | file_watcher | Detected 2 change(s) in sample.txt
+2026-06-19 15:58:02 | INFO     | file_watcher | Published UPDATE event 9f4c191d-d893-4bbe-829a-1447c7e3db24 -> partition=0 offset=0
+2026-06-19 15:58:02 | INFO     | file_watcher | Published INSERT event 97d479a5-cd85-443f-a02b-cefa03c11075 -> partition=0 offset=1
+2026-06-19 15:59:39 | INFO     | file_watcher | Detected 1 change(s) in sample.txt
+2026-06-19 15:59:39 | INFO     | file_watcher | Published UPDATE event 83307098-1d88-419e-ab76-2ea27a3b4225 -> partition=0 offset=2
+2026-06-19 16:00:42 | INFO     | file_watcher | Detected 1 change(s) in sample.txt
+2026-06-19 16:00:42 | INFO     | file_watcher | Published INSERT event f9c21bc0-f2f9-4346-a568-60d91e737015 -> partition=0 offset=3
+2026-06-19 16:01:39 | INFO     | file_watcher | Watching sample_data\sample.txt for changes...
+2026-06-19 16:02:08 | INFO     | file_watcher | Detected 1 change(s) in sample.txt
+2026-06-19 16:02:09 | INFO     | file_watcher | Published INSERT event f6b87a0b-81fc-48c6-a1b3-51f96f5d8807 -> partition=0 offset=4
