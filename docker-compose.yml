@@ -1,36 +1,106 @@
-version: "3.8"
+# ============================================================
+# streaming_pipeline — Jaya Kotagiri
+# Local Kafka stack for development and testing
+# Run: docker-compose up -d
+# Kafka UI: http://localhost:8080
+# ============================================================
+
+version: "3.9"
+
+networks:
+  jaya-pipeline-net:
+    name: jaya-pipeline-net
+    driver: bridge
+
+volumes:
+  jaya-zookeeper-data:
+  jaya-kafka-data:
 
 services:
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.6.0
+
+  jaya-zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: jaya-zookeeper
+    hostname: jaya-zookeeper
+    networks:
+      - jaya-pipeline-net
+    ports:
+      - "2181:2181"
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - "2181:2181"
+      ZOOKEEPER_LOG4J_ROOT_LOGLEVEL: WARN
+    volumes:
+      - jaya-zookeeper-data:/var/lib/zookeeper/data
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  kafka:
-    image: confluentinc/cp-kafka:7.6.0
-    depends_on:
-      - zookeeper
+  jaya-kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: jaya-kafka
+    hostname: jaya-kafka
+    networks:
+      - jaya-pipeline-net
     ports:
       - "9092:9092"
+      - "29092:29092"
+    depends_on:
+      jaya-zookeeper:
+        condition: service_healthy
     environment:
       KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_INTERNAL://0.0.0.0:29092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_ZOOKEEPER_CONNECT: jaya-zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://jaya-kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG4J_ROOT_LOGLEVEL: WARN
+    volumes:
+      - jaya-kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
 
-  kafka-ui:
+  jaya-kafka-ui:
     image: provectuslabs/kafka-ui:latest
-    depends_on:
-      - kafka
+    container_name: jaya-kafka-ui
+    hostname: jaya-kafka-ui
+    networks:
+      - jaya-pipeline-net
     ports:
       - "8080:8080"
+    depends_on:
+      jaya-kafka:
+        condition: service_healthy
     environment:
-      KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_NAME: jaya-local-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: jaya-kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: jaya-zookeeper:2181
+      SERVER_SERVLET_CONTEXT_PATH: /
+
+  jaya-postgres:
+    image: postgres:15-alpine
+    container_name: jaya-postgres
+    hostname: jaya-postgres
+    networks:
+      - jaya-pipeline-net
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: jaya
+      POSTGRES_PASSWORD: jaya_dev_pass
+      POSTGRES_DB: jaya_pipeline_dev
+    volumes:
+      - ./init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jaya -d jaya_pipeline_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
