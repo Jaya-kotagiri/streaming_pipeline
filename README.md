@@ -1,206 +1,269 @@
-# streaming_pipeline
-
-A lightweight, production-aware file change detection system that watches local CSV/text files, extracts line-level diffs, and streams structured change events to Apache Kafka — where they are consumed, transformed, and persisted to a database sink.
-
-Built to handle real-world edge cases: editors that rewrite entire files on save, watcher restarts that would otherwise replay the whole file, and Kafka delivery failures that would silently drop data.
+# Real-Time Change Data Streaming Pipeline
+**Author:** Jaya Kotagiri
 
 ---
 
-## What it does
+# Project Overview
 
-1. **Watches** a directory for file modifications using `watchdog`
-2. **Diffs** each changed file against a persisted snapshot using `difflib.SequenceMatcher` to identify which lines were inserted, updated, or deleted — not just that the file changed
-3. **Publishes** structured `ChangeEvent` messages to a Kafka topic
-4. **Consumes** those events via a Spark Structured Streaming job (full path) or a lightweight `confluent-kafka` consumer (dev path)
-5. **Writes** change records to PostgreSQL (dev) or Snowflake (production), idempotently on `event_id`
+This project is my implementation of a real-time file change tracking and streaming platform using Python, Apache Kafka, Spark Structured Streaming, PostgreSQL, and Snowflake.
 
----
+Instead of reprocessing an entire file whenever it changes, the system detects line-level INSERT, UPDATE, and DELETE operations and streams only the meaningful changes through Kafka.
 
-## Why line-level diffing matters
-
-Most file watchers tell you *that* a file changed. This system tells you *what* changed and *how*.
-
-Editors like Notepad write a completely new file to disk on every save. A naive watcher would emit every line as an insert on each save. `SequenceMatcher` diffs the new content against the last known snapshot, so only the lines that actually changed produce events — regardless of how the editor writes the file.
-
-Snapshots are persisted to disk so the watcher can resume correctly after a restart without replaying the entire file history.
+The goal was to understand how modern event-driven data engineering systems are built and how Change Data Capture (CDC) concepts can be implemented for flat files.
 
 ---
 
-## Architecture
+# Why I Built This
 
-```
- ┌─────────────────────────────────────────────────────────┐
- │                        Watcher                          │
- │                                                         │
- │   watchdog (FileSystemEventHandler)                     │
- │       │  debounced on_modified                          │
- │       ▼                                                 │
- │   DiffEngine (difflib.SequenceMatcher)                  │
- │       │  compare new content vs. persisted snapshot     │
- │       ▼                                                 │
- │   ChangeEvent dataclass                                 │
- │   { event_id, timestamp, op, line_no, old, new }        │
- │       │                                                 │
- │       ▼                                                 │
- │   KafkaProducer  ──► dead-letter JSONL on failure       │
- └────────────┬────────────────────────────────────────────┘
-              │  Kafka topic: file_change_events
- ┌────────────▼────────────────────────────────────────────┐
- │                      Consumer                           │
- │                                                         │
- │   [Full]  Spark Structured Streaming                    │
- │           with checkpoint for at-least-once delivery    │
- │                                                         │
- │   [Lite]  confluent-kafka consumer                      │
- │           for local dev / unit testing                  │
- │                                                         │
- │       ▼                                                 │
- │   DB Sink (idempotent on event_id)                      │
- │   ├── PostgreSQL  (dev)                                 │
- │   └── Snowflake   (production)                          │
- └─────────────────────────────────────────────────────────┘
+In many organizations, source files are updated frequently.
+
+Reloading the entire file after every change is inefficient and expensive at scale.
+
+I wanted to build a system that:
+
+- Detects only what changed
+- Streams those changes in real time
+- Stores them reliably
+- Supports fault tolerance and recovery
+
+This project helped me gain hands-on experience with Kafka, Spark Streaming, and production-oriented data engineering practices.
+
+---
+
+# High-Level Architecture
+
+```mermaid
+flowchart LR
+
+A[Source File] --> B[File Watcher]
+
+B --> C[Change Detection Engine]
+
+C --> D[Kafka Producer]
+
+D --> E[Kafka Topic]
+
+E --> F[Spark Structured Streaming]
+
+F --> G[PostgreSQL]
+
+F --> H[Snowflake]
+
+F --> I[Dead Letter Queue]
 ```
 
 ---
 
-## Project layout
+# Detailed Processing Flow
 
+```mermaid
+sequenceDiagram
+
+participant User
+participant Watcher
+participant Snapshot
+participant Kafka
+participant Spark
+participant DB
+
+User->>Watcher: Modify File
+
+Watcher->>Snapshot: Load Previous Snapshot
+
+Watcher->>Watcher: Compare Changes
+
+Watcher->>Kafka: Publish Events
+
+Kafka->>Spark: Stream Events
+
+Spark->>DB: Write Processed Records
+
+Spark->>Snapshot: Update Latest State
 ```
+
+---
+
+# Project Structure
+
+```text
 streaming_pipeline/
+│
+├── producer/
+│   ├── file_watcher.py
+│   ├── change_detector.py
+│   └── kafka_producer.py
+│
+├── consumer/
+│   ├── spark_consumer.py
+│   └── transformations.py
+│
 ├── config/
-│   └── config.yaml          # all tunables; overridable via FCSTREAM_* env vars
-├── src/
-│   ├── watcher/
-│   │   ├── file_watcher.py  # watchdog handler + debounce logic
-│   │   └── diff_engine.py   # SequenceMatcher diff → ChangeEvent list
-│   ├── producer/
-│   │   └── kafka_producer.py
-│   ├── consumer/
-│   │   ├── spark_consumer.py
-│   │   └── lite_consumer.py
-│   ├── db/
-│   │   ├── postgres_sink.py
-│   │   └── snowflake_sink.py
-│   ├── models/
-│   │   └── change_event.py  # ChangeEvent dataclass
-│   └── utils/
-│       ├── config_loader.py
-│       └── logger.py
+│   └── config.yaml
+│
+├── snapshots/
+│
+├── logs/
+│
 ├── tests/
-│   ├── test_diff_engine.py
-│   └── test_db_sink.py
-├── sample_data/             # example CSVs for local testing
-├── snapshots/               # persisted file baselines (gitignored)
-├── logs/                    # rotating log output (gitignored)
-├── main_watcher.py          # entrypoint: start the file watcher
-├── main_consumer_lite.py    # entrypoint: start the lite consumer
-├── docker-compose.yml       # Kafka + Zookeeper + Kafka UI
-└── requirements.txt
+│
+├── requirements.txt
+│
+└── README.md
 ```
 
 ---
 
-## Quickstart
+# Design Decisions
 
-### 1. Start Kafka locally
+## Snapshot-Based Comparison
 
-```bash
-docker-compose up -d
-```
+Instead of comparing files against the original version, the pipeline compares each new version with the latest snapshot.
 
-Kafka UI is available at `http://localhost:8080` once the stack is up.
+Benefits:
 
-### 2. Install dependencies
+- Faster processing
+- Lower memory consumption
+- Accurate change tracking
 
-```bash
-pip install -r requirements.txt
-```
+## Event-Driven Processing
 
-### 3. Configure
+Each change becomes an independent event.
 
-Edit `config/config.yaml` or export environment variables. All settings are prefixed `FCSTREAM_`:
+Benefits:
 
-```bash
-export FCSTREAM_WATCH_DIR=/path/to/your/files
-export FCSTREAM_KAFKA_BOOTSTRAP=localhost:9092
-export FCSTREAM_KAFKA_TOPIC=file_change_events
-export FCSTREAM_DB_TARGET=postgres   # or snowflake
-```
+- Better scalability
+- Easier downstream consumption
+- Supports multiple consumers
 
-### 4. Start the watcher
+## Dead Letter Queue
 
-```bash
-python main_watcher.py
-```
+Invalid records are redirected to a DLQ instead of stopping the pipeline.
 
-### 5. Start the consumer
+Benefits:
 
-Dev (lite) path:
+- Higher reliability
+- Easier troubleshooting
 
-```bash
-python main_consumer_lite.py --db dev
-```
+## Checkpointing
 
-Full Spark path:
+Spark checkpoints maintain processing state and support recovery after failures.
 
-```bash
-spark-submit src/consumer/spark_consumer.py --db production
+---
+
+# Change Detection Logic
+
+```mermaid
+flowchart TD
+
+A[Current File] --> D[Compare]
+
+B[Previous Snapshot] --> D
+
+D --> E{Difference?}
+
+E -->|Insert| F[INSERT Event]
+
+E -->|Update| G[UPDATE Event]
+
+E -->|Delete| H[DELETE Event]
+
+F --> I[Kafka]
+
+G --> I
+
+H --> I
 ```
 
 ---
 
-## Configuration reference
+# Challenges Faced
 
-| Key | Env override | Default | Description |
-|-----|-------------|---------|-------------|
-| `watch_dir` | `FCSTREAM_WATCH_DIR` | `./sample_data` | Directory to watch |
-| `kafka.bootstrap` | `FCSTREAM_KAFKA_BOOTSTRAP` | `localhost:9092` | Kafka broker address |
-| `kafka.topic` | `FCSTREAM_KAFKA_TOPIC` | `file_change_events` | Topic name |
-| `kafka.dlq_path` | `FCSTREAM_DLQ_PATH` | `./logs/dlq.jsonl` | Dead-letter queue file |
-| `db.target` | `FCSTREAM_DB_TARGET` | `postgres` | `postgres` or `snowflake` |
-| `watcher.debounce_ms` | `FCSTREAM_DEBOUNCE_MS` | `300` | Debounce delay in ms |
-| `watcher.snapshot_dir` | `FCSTREAM_SNAPSHOT_DIR` | `./snapshots` | Snapshot persistence path |
+## Multiple Rapid File Saves
 
----
+Problem:
 
-## Fault tolerance
+Multiple save operations generated duplicate events.
 
-| Failure scenario | How it is handled |
-|-----------------|-------------------|
-| Kafka broker unreachable | Failed events written to `dlq.jsonl`; retried on a background timer |
-| Watcher process restart | Snapshots on disk used as baseline; no replay of unchanged lines |
-| Kafka redelivery / duplicate messages | DB writes are idempotent on `event_id` (UUID per change) |
-| Consumer crash mid-batch | Spark checkpoint stores committed offsets; resumes from last good position |
+Solution:
+
+Implemented debounce logic to reduce unnecessary processing.
 
 ---
 
-## Running tests
+## Identifying Updates
 
-```bash
-pytest tests/ -v
-```
+Problem:
 
-Tests cover the diff engine (insert, update, delete, no-op, full-rewrite scenarios) and the DB sink (idempotency, schema validation).
+Initially, updates appeared as a delete followed by an insert.
 
----
+Solution:
 
-## Migrating to Snowflake
-
-1. Set `FCSTREAM_DB_TARGET=snowflake`
-2. Add Snowflake credentials to `config/config.yaml` under the `snowflake:` key (account, user, password, warehouse, database, schema)
-3. Run the Spark consumer path — the Snowflake sink uses the Snowflake Spark connector and writes via `MERGE INTO` on `event_id`
+Used Python SequenceMatcher to improve update detection accuracy.
 
 ---
 
-## Requirements
+## Streaming Recovery
 
-- Python 3.9+
-- Docker (for local Kafka)
-- Java 11+ (for Spark consumer path only)
-- Snowflake account (for production sink only)
+Problem:
+
+Understanding Kafka offsets and Spark checkpoints.
+
+Solution:
+
+Implemented checkpoint locations and tested restart scenarios.
 
 ---
 
-## License
+# Key Learnings
 
-MIT
+Through this project I learned:
+
+- Kafka Producers and Consumers
+- Spark Structured Streaming
+- Event-Driven Architecture
+- CDC Concepts
+- Fault-Tolerant Design
+- PostgreSQL Integration
+- Snowflake Integration
+- Production Pipeline Design
+
+---
+
+# Future Enhancements
+
+- Docker Deployment
+- Kubernetes Deployment
+- GitHub Actions CI/CD
+- Prometheus Monitoring
+- Grafana Dashboards
+- Schema Registry Integration
+- Cloud Deployment on AWS
+
+---
+
+# Resume Summary
+
+Built a real-time Change Data Streaming Pipeline using Python, Kafka, Spark Structured Streaming, PostgreSQL, and Snowflake. Implemented line-level CDC, event-driven processing, checkpointing, DLQ handling, and fault-tolerant data ingestion for scalable streaming analytics.
+
+---
+
+# Technology Stack
+
+| Layer | Technology |
+|---------|---------|
+| Programming | Python |
+| Messaging | Apache Kafka |
+| Stream Processing | Spark Structured Streaming |
+| Database | PostgreSQL |
+| Data Warehouse | Snowflake |
+| Configuration | YAML |
+| Testing | Pytest |
+| Version Control | Git & GitHub |
+
+---
+
+# Author Notes
+
+This project was built as a learning-focused yet production-inspired implementation of real-time change data processing.
+
+The objective was not only to learn individual technologies but also understand how they work together in a complete end-to-end data engineering solution.
