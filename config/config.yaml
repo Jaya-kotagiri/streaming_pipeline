@@ -2,7 +2,6 @@
 # streaming_pipeline — Jaya Kotagiri
 # Central configuration file
 # All values can be overridden via environment variables
-# prefixed with JAYA_STREAM_ (e.g. JAYA_STREAM_WATCH_DIR)
 # ============================================================
 
 watcher:
